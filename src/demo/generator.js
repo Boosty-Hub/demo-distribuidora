@@ -236,6 +236,52 @@
     movs.sort((a, b) => a.fecha < b.fecha ? -1 : 1);
     db.insert('movimientos_bancarios', movs);
 
+    // ── Dropshipping: proveedores internacionales + comparador de precios ────
+    // El módulo compara, para el MISMO sku, lo que cobra cada proveedor externo — así que el
+    // dataset tiene que sembrar de verdad la tabla de precios (ds_precios) con variación real
+    // entre proveedores, no solo la lista de proveedores vacía.
+    const DS_PROVEEDORES_BASE = [
+      ['China Direct Supply', 'China', '🇨🇳', 30],
+      ['USA Wholesale Import', 'Estados Unidos', '🇺🇸', 10],
+      ['Panama Free Zone', 'Panama', '🇵🇦', 14],
+      ['Miami Cargo Express', 'Estados Unidos', '🇺🇸', 8],
+    ];
+    const dsProveedores = DS_PROVEEDORES_BASE.map((p, i) => ({
+      id: `${empresaId}-DSP-${i + 1}`, empresa_id: empresaId, nombre: p[0], pais: p[1], bandera: p[2],
+      contacto: rng.pick(cat.NOMBRES) + ' ' + rng.pick(cat.APELLIDOS), email: emailDe(p[0]), whatsapp: telefonoVe(rng),
+      color: rng.pick(['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#84cc16']),
+      activo: true, dias_entrega: p[3], notas: '',
+    }));
+    db.insert('ds_proveedores', dsProveedores);
+
+    // ~60% del catálogo son candidatos de dropshipping (mismos SKU que ya se venden — el
+    // comparador tiene sentido justamente porque son productos que la empresa YA compra).
+    const dsCandidatos = rng.pickN(productos, Math.round(productos.length * 0.6));
+    const dsProductos = dsCandidatos.map(p => ({
+      sku: p.sku, empresa_id: empresaId, nombre: p.nombre, categoria: p.categoria, marca: p.marca,
+      shopify_id: rng.chance(0.4) ? ('shopify-' + rng.token(8)) : null,
+      shopify_status: rng.weighted([['publicado', 0.35], ['no_publicado', 0.5], ['error', 0.15]]),
+      shopify_precio: p.base,
+      ultima_sync: rng.chance(0.4) ? isoDate(daysAgo(rng.int(0, 20))) : null,
+    }));
+    db.insert('ds_productos', dsProductos);
+
+    const dsPrecios = [];
+    dsCandidatos.forEach(p => {
+      const provs = rng.pickN(dsProveedores, rng.int(2, dsProveedores.length));
+      provs.forEach(prov => {
+        // Precio del proveedor externo relativo al COSTO actual: entre 65% (mejor que lo que se
+        // paga hoy — vale la pena cambiar) y 125% (peor). Así el comparador siempre tiene algo
+        // real que mostrar, no todos los proveedores cobrando lo mismo.
+        const factor = 0.65 + rng.float() * 0.6;
+        dsPrecios.push({
+          id: prov.id + '-' + p.sku, empresa_id: empresaId, proveedor_id: prov.id, sku: p.sku,
+          precio: round2(p.costo * factor),
+        });
+      });
+    });
+    db.insert('ds_precios', dsPrecios);
+
     // ── Chat interno ─────────────────────────────────────────────────────────
     const canales = ['General', 'Ventas', 'Almacen'].map((n, i) => ({
       id: `${empresaId}-CH-${i + 1}`, nombre: n, tipo: 'grupo', empresa_id: empresaId,

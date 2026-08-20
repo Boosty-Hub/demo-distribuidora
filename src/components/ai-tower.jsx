@@ -55,6 +55,31 @@
     const despachosPendientes = docs.filter(d => d.tipo === 'factura' && d.estado_despacho === 'pendiente').length;
     return { cotSinConvertir, despachosPendientes, cargado: docs.length > 0 };
   }
+  // Dropshipping no vive en SSData (dropshipping.jsx carga ds_proveedores/ds_productos/ds_precios
+  // a su propio estado local) — se lee directo del motor mock, mismo dataset que ve el módulo.
+  function dropshippingStats() {
+    const db = window.__ssDemoDB;
+    if (!db) return { proveedores: 0, comparables: 0, ahorroProm: 0, sinPublicar: 0 };
+    const e = window.currentEmpresa || 'demo1';
+    const proveedores = db.table('ds_proveedores').filter(p => p.empresa_id === e);
+    const productos = db.table('ds_productos').filter(p => p.empresa_id === e);
+    const precios = db.table('ds_precios').filter(p => p.empresa_id === e);
+    const porSku = {};
+    precios.forEach(pr => { (porSku[pr.sku] = porSku[pr.sku] || []).push(pr.precio); });
+    let comparables = 0, ahorroSum = 0;
+    Object.values(porSku).forEach(lista => {
+      if (lista.length < 2) return;
+      comparables++;
+      const min = Math.min(...lista), max = Math.max(...lista);
+      if (max > 0) ahorroSum += (max - min) / max;
+    });
+    const sinPublicar = productos.filter(p => p.shopify_status !== 'publicado').length;
+    return {
+      proveedores: proveedores.length, comparables,
+      ahorroProm: comparables ? Math.round((ahorroSum / comparables) * 100) : 0,
+      sinPublicar, totalProductos: productos.length,
+    };
+  }
 
   // ── Config por módulo: label + icono + generador de insights (se recalcula por módulo) ──
   const MODULES = {
@@ -244,6 +269,36 @@
         ];
       },
     },
+    dropshipping: {
+      label: 'Dropshipping', icon: 'truck',
+      build() {
+        const s = dropshippingStats();
+        return [
+          {
+            id: 'ds-ahorro', tone: s.comparables > 0 ? 'good' : 'info', tag: 'Ahorro potencial', icon: 'dollar',
+            title: s.comparables > 0 ? `${s.ahorroProm}% de ahorro promedio entre proveedores` : 'Cargá precios de más de un proveedor',
+            detail: s.comparables > 0
+              ? `Comparé ${s.comparables} productos con precio de más de un proveedor: cambiar al más barato en cada uno ahorra en promedio ${s.ahorroProm}% frente a pagarle siempre al mismo.`
+              : 'Con precios de al menos 2 proveedores por producto, puedo calcular cuánto se ahorra comprándole siempre al más barato.',
+            action: s.comparables > 0 ? 'Ver comparador ordenado por ahorro' : null,
+          },
+          {
+            id: 'ds-publicar', tone: s.sinPublicar > 0 ? 'warn' : 'good', tag: 'Shopify', icon: 'sync',
+            title: s.sinPublicar > 0 ? `${s.sinPublicar} productos sin publicar` : 'Catálogo sincronizado',
+            detail: s.sinPublicar > 0
+              ? `${s.sinPublicar} de ${s.totalProductos} productos de dropshipping todavía no están publicados en la tienda — son ventas que hoy no se pueden cerrar online.`
+              : 'Todo el catálogo de dropshipping ya está publicado en la tienda.',
+            action: s.sinPublicar > 0 ? 'Preparar publicación masiva' : null,
+          },
+          {
+            id: 'ds-proveedor', tone: 'info', tag: 'Proveedores', icon: 'truck',
+            title: `${s.proveedores} proveedores activos`,
+            detail: 'Diversificar entre varios proveedores por producto reduce el riesgo de quiebre si uno se atrasa — hoy la mayoría de los productos tiene más de una fuente cargada.',
+            action: null,
+          },
+        ];
+      },
+    },
   };
 
   // Rutas donde la torre no aporta (portales sin chrome del ERP, config, papelera, chat, etc.)
@@ -258,6 +313,7 @@
     if (/^\/proveedores/.test(p)) return 'suppliers';
     if (/^\/(reportes|finanzas-reportes)/.test(p)) return 'reportes';
     if (/^\/comisiones/.test(p)) return 'comisiones';
+    if (/^\/dropshipping/.test(p)) return 'dropshipping';
     return null;
   }
 
@@ -269,6 +325,7 @@
     if (/pagar|cxp|proveedor/.test(q)) return 'Te conviene pagar primero a los proveedores que ofrecen descuento por pronto pago — cuida el flujo de caja sin resignar margen.';
     if (/cliente/.test(q)) return 'Los clientes con mejor puntaje de recompra son buenos candidatos para una oferta anticipada del próximo lanzamiento.';
     if (/venta|vender|cotiza/.test(q)) return 'Las cotizaciones que se siguen dentro de las primeras 48 horas cierran casi el doble que las que se dejan enfriar.';
+    if (/dropship|proveedor externo|precio.*proveedor|shopify/.test(q)) return 'Antes de comprarle siempre al mismo proveedor, revisá el comparador: en varios productos hay otro proveedor cargado con mejor precio para el mismo SKU.';
     return 'Buena pregunta — con los datos de este módulo, lo primero que revisaría son las alertas que ya te dejé arriba; puedo profundizar en cualquiera de ellas.';
   }
 
