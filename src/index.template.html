@@ -2,23 +2,23 @@
 <html lang="es-VE">
 <head>
 <meta charset="UTF-8">
-<base id="ss-base" href="/">
 <!-- Demo 100% estatica (GitHub Pages): un sitio de proyecto se sirve bajo /<repo>/, no en la raiz.
-     Este script detecta el prefijo ANTES de que el parser llegue a theme.css/dist/*.js (que son
-     rutas relativas) y corrige el <base>, así el mismo index.html sirve para dev local (raíz) y
-     para Pages (bajo /demo-distribuidora/) sin build condicional. `ssBase`/`ssPath` los usa el
-     código que arma rutas absolutas con history.pushState/replaceState (ver app-bootstrap/shell). -->
+     __SS_BASE__ lo reemplaza build.js (env PAGES_BASE) ANTES de que el navegador pida nada: el
+     preload scanner del navegador arranca a bajar recursos relativos (theme.css, dist/*.js) en
+     cuanto los ve en el HTML crudo, SIN esperar a que corra ningún <script> — un <base> corregido
+     por JS en runtime llega tarde y esas primeras descargas ya salieron con la ruta vieja (404).
+     Por eso el valor tiene que venir ya resuelto en el HTML servido, no calculado en el navegador.
+     Este archivo NO se edita a mano: es una plantilla (src/index.template.html) que build.js
+     procesa a src/index.html/404.html en cada build. `ssBase`/`ssPath` los usa el código que arma
+     rutas absolutas con history.pushState/replaceState (ver app-bootstrap.jsx/shell.jsx). -->
+<base id="ss-base" href="__SS_BASE__/">
 <script>
-(function () {
-  var REPO = 'demo-distribuidora';
-  var prefix = /\.github\.io$/.test(location.hostname) ? ('/' + REPO) : '';
-  document.getElementById('ss-base').setAttribute('href', prefix + '/');
-  window.__SS_BASE = prefix;
-  window.ssBase = function (p) { return prefix + p; };
+  window.__SS_BASE = '__SS_BASE__';
+  window.ssBase = function (p) { return '__SS_BASE__' + p; };
   window.ssPath = function (p) {
+    var prefix = '__SS_BASE__';
     return (prefix && p.indexOf(prefix) === 0) ? (p.slice(prefix.length) || '/') : p;
   };
-})();
 </script>
 <title>Distribuidora Demo · ERP</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -117,11 +117,11 @@
 <!-- Motor de datos mock (demo sin backend): PRNG con semilla, catálogos, generador del dataset
      relacional de las 2 empresas, y el cliente falso window.sb que consume src/supabase.js.
      Deben ir ANTES de supabase.js — supabase.js llama window.__ssCreateMockClient() al definirse. -->
-<script defer src="dist/demo-prng.js"></script>
-<script defer src="dist/demo-catalogos.js"></script>
-<script defer src="dist/demo-generator.js"></script>
-<script defer src="dist/demo-db.js"></script>
-<script defer src="dist/demo-mock-sb.js"></script>
+<script defer src="dist/demo/prng.js"></script>
+<script defer src="dist/demo/catalogos.js"></script>
+<script defer src="dist/demo/generator.js"></script>
+<script defer src="dist/demo/db.js"></script>
+<script defer src="dist/demo/mock-sb.js"></script>
 <script defer src="dist/supabase.js"></script>
 
 <!-- Core eager — siempre necesario (login, shell, etc). defer preserva el orden de ejecución. -->
@@ -142,7 +142,7 @@
 <!-- Loader de chunks lazy por ruta -->
 <script>
   // Marcar como cargados los chunks que ya van eager en <script> tags arriba (incl. app-bootstrap)
-  window.__loadedChunks = new Set(['core','virtual','data-table','activity-log','shell','login','story-mode','pos','settings','pdf','app-bootstrap','demo-prng','demo-catalogos','demo-generator','demo-db','demo-mock-sb']);
+  window.__loadedChunks = new Set(['core','virtual','data-table','activity-log','shell','login','story-mode','pos','settings','pdf','app-bootstrap']);
   window.__loadChunk = function(name) {
     if (window.__loadedChunks.has(name)) return Promise.resolve();
     window.__loadedChunks.add(name);

@@ -2,13 +2,20 @@
 .DS_Store
 Thumbs.db
 
+# Estado local de la sesión de Claude Code (no es del proyecto)
+.claude/
+
 # Editor
 .vscode/
 *.swp
 
 # Node / build
 node_modules/
-# El build (dist/ + version.json) se genera en CI (.github/workflows/deploy.yml) al desplegar;
-# no hace falta commitearlo. Localmente: `node build.js` antes de `npx serve src`.
+# El build (dist/ + version.json + index.html + 404.html) se genera en CI
+# (.github/workflows/deploy.yml) al desplegar; no hace falta commitearlo. Localmente:
+# `node build.js` antes de `npx serve src`. La fuente editable de index.html/404.html es
+# src/index.template.html (ver build.js) — nunca se edita src/index.html a mano.
 src/dist/
 src/version.json
+src/index.html
+src/404.html

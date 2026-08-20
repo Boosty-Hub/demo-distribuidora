@@ -15,6 +15,23 @@ if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
 //   DEV=1 node build.js    → DESARROLLO: sin minificar + sourcemap inline (iteración rápida).
 const DEV = process.env.DEV === '1';
 
+// Prefijo de ruta del sitio: '' en local (se sirve en la raiz) o '/demo-distribuidora' en
+// GitHub Pages (un sitio de proyecto vive bajo /<repo>/, ver .github/workflows/deploy.yml, que
+// setea PAGES_BASE). Sin barra final. Ver la cabecera de src/index.template.html para el porqué
+// de que esto tenga que resolverse ACÁ (build time) y no con JS en el navegador.
+const PAGES_BASE = (process.env.PAGES_BASE || '').replace(/\/$/, '');
+
+// index.html/404.html NO se editan a mano: se generan de src/index.template.html en cada build,
+// reemplazando __SS_BASE__ por PAGES_BASE. Regenerar siempre desde la plantilla (no mutar el
+// resultado de la corrida anterior) los hace repetibles sin importar en qué orden se llame a
+// build.js con distintos PAGES_BASE.
+function renderHtmlTemplates() {
+  const tpl = fs.readFileSync(path.join(SRC, 'index.template.html'), 'utf8');
+  const out = tpl.split('__SS_BASE__').join(PAGES_BASE);
+  fs.writeFileSync(path.join(SRC, 'index.html'), out);
+  fs.writeFileSync(path.join(SRC, '404.html'), out);
+}
+
 // Configuracion comun para JSX
 const common = {
   bundle: false,           // sin bundling - preservamos window.* globals
@@ -127,6 +144,8 @@ const plainFiles = [
 ];
 
 (async () => {
+  renderHtmlTemplates();
+  console.log('OK index.template.html →', PAGES_BASE ? `index.html/404.html (base: ${PAGES_BASE}/)` : 'index.html/404.html (base: /)');
   const all = [...eagerFiles, ...lazyFiles];
   for (const f of all) {
     const src = path.join(SRC, f);

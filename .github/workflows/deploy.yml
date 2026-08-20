@@ -24,6 +24,8 @@ jobs:
           node-version: 20
       - run: npm install
       - run: node build.js
+        env:
+          PAGES_BASE: /demo-distribuidora
       - uses: actions/upload-pages-artifact@v3
         with:
           path: src
