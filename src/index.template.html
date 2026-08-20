@@ -132,6 +132,7 @@
 <script defer src="dist/shell.js"></script>
 <script defer src="dist/login.js"></script>
 <script defer src="dist/story-mode.js"></script>
+<script defer src="dist/ai-tower.js"></script>
 <!-- Helpers globales eager: pos.jsx define getDisponible/getNextDocId; settings.jsx define canUser/getAlmacenes/getEmpresaConfig/getCamposConfig; pdf.jsx define generateDocumentPDF -->
 <script defer src="dist/pos.js"></script>
 <script defer src="dist/settings.js"></script>
@@ -142,7 +143,7 @@
 <!-- Loader de chunks lazy por ruta -->
 <script>
   // Marcar como cargados los chunks que ya van eager en <script> tags arriba (incl. app-bootstrap)
-  window.__loadedChunks = new Set(['core','virtual','data-table','activity-log','shell','login','story-mode','pos','settings','pdf','app-bootstrap']);
+  window.__loadedChunks = new Set(['core','virtual','data-table','activity-log','shell','login','story-mode','ai-tower','pos','settings','pdf','app-bootstrap']);
   window.__loadChunk = function(name) {
     if (window.__loadedChunks.has(name)) return Promise.resolve();
     window.__loadedChunks.add(name);

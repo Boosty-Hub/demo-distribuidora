@@ -55,6 +55,7 @@ const eagerFiles = [
   'components/shell.jsx',
   'components/login.jsx',
   'components/story-mode.jsx',
+  'components/ai-tower.jsx',
   'components/app-bootstrap.jsx',
 ];
 // 2. Route chunks (lazy) - solo cuando el usuario entra

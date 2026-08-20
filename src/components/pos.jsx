@@ -1675,8 +1675,16 @@ function POSCompose({ onOpenList, editingDoc, onEditDone }) {
   function toggleListSort(key) { setListSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }); }
   // Override manual de lista de precios — null = usa la del cliente
   const [listaPrecioOverride, setListaPrecioOverride] = React.useState(saved?.listaPrecioOverride ?? null);
-  // Drawer del carrito
-  const [cartOpen, setCartOpen] = useState(true);
+  // Drawer del carrito. En móvil arranca CERRADO: a ese ancho es un bottom-sheet a pantalla
+  // completa que tapa todo el catálogo, y abrirlo antes de que el usuario haya agregado nada
+  // (o siquiera visto qué hay para vender) es peor que mostrarlo bajo demanda con el FAB.
+  const [cartOpen, setCartOpen] = useState(() => window.innerWidth > 768);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth <= 768);
+  useEffect(() => {
+    function onResize() { setIsMobileViewport(window.innerWidth <= 768); }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   // Ancho por defecto más generoso (2026-08-14, pedido explícito con captura): 380px dejaba el
   // carrito muy angosto ni bien se abría; 520 es el que antes había que pedir a mano con "Expandir".
   const [cartWidth, setCartWidth] = useState(() => parseInt(localStorage.getItem('ss-pos-cart-width')) || 520);
@@ -3220,8 +3228,8 @@ function POSCompose({ onOpenList, editingDoc, onEditDone }) {
         {/* Resizer handle */}
         {cartOpen && cartMode === 'drawer' && <div className="pos-resizer" onMouseDown={onResizerMouseDown} title="Arrastrar para redimensionar"/>}
 
-        {/* Backdrop del popup — click afuera vuelve al drawer */}
-        {cartOpen && cartMode === 'popup' && (
+        {/* Backdrop del popup (y del bottom-sheet en móvil) — click afuera cierra el carrito */}
+        {cartOpen && (cartMode === 'popup' || isMobileViewport) && (
           <div onClick={dismissCart}
             style={{position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:199}}/>
         )}

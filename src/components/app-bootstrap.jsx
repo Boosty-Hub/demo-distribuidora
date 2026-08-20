@@ -634,6 +634,10 @@ function App() {
       {window.PinEnrollBanner && <SilentErrorBoundary><PinEnrollBanner/></SilentErrorBoundary>}
       {/* Widget flotante de chat eliminado: el chat interno se accede solo desde el ícono del header. */}
       {window.StoryMode && <SilentErrorBoundary><StoryMode/></SilentErrorBoundary>}
+      {/* Torre de IA: panel contextual por módulo (POS, inventario, CxC, bancos, clientes...).
+          Decide sola (mirando `pathname`) en qué módulos tiene sentido aparecer; en el resto no
+          renderiza nada. Fuera del boundary de ruta a propósito, como los demás overlays. */}
+      {window.AITower && <SilentErrorBoundary><AITower pathname={pathname}/></SilentErrorBoundary>}
     </div>
   );
 }

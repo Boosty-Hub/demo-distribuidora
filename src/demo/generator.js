@@ -57,6 +57,9 @@
     db.insert('listas_precios', listasPrecios);
 
     // ── Productos ────────────────────────────────────────────────────────────
+    // `minimo` es el umbral GLOBAL de reposición del producto (lo que lee inventory.jsx para su
+    // KPI "Bajo Stock" y lo que lee la Torre de IA — el mismo campo en los dos lados a propósito,
+    // para que el número que muestra la IA nunca contradiga al que ya muestra el módulo).
     const productos = opts.productos.map((p, i) => {
       const [nombre, categoria, costo, base, peso] = p;
       const serializado = opts.serializablePrefix && rng.chance(opts.serialProb || 0);
@@ -64,19 +67,24 @@
         sku: `${opts.skuPrefix}-${pad(i + 1, 4)}`,
         nombre, categoria, marca: rng.pick(opts.marcas), costo: round2(costo), base: round2(base),
         peso, empresas: [empresaId], serializado: !!serializado,
-        garantia_meses: serializado ? 12 : 0,
+        garantia_meses: serializado ? 12 : 0, minimo: rng.int(5, 15),
         descripcion: nombre, servicio: false, activo: true,
       };
     });
     db.insert('productos', productos);
 
     // ── Inventario (no toda combinacion sku/almacen — variedad real) ────────
+    // ~15% de los productos se generan deliberadamente en quiebre (bajo su `minimo` global): sin
+    // esto, el KPI "Bajo Stock" del módulo real —y lo que reporta la Torre de IA sobre el mismo
+    // dato— siempre daría 0, que es menos convincente para la demo que un puñado de casos reales.
+    const skusBajoStock = new Set(rng.pickN(productos, Math.round(productos.length * 0.15)).map(p => p.sku));
     const invRows = [];
     productos.forEach(p => {
+      const forzarBajo = skusBajoStock.has(p.sku);
       almacenes.forEach((a, ai) => {
         // el almacen principal siempre tiene stock; las sucursales, la mayoria de las veces
         if (ai > 0 && !rng.chance(0.75)) return;
-        const cantidad = rng.int(0, ai === 0 ? 180 : 60);
+        const cantidad = forzarBajo ? (ai === 0 ? rng.int(0, p.minimo - 1) : 0) : rng.int(0, ai === 0 ? 180 : 60);
         const reservado = rng.chance(0.15) ? rng.int(1, Math.min(5, cantidad)) : 0;
         invRows.push({
           sku: p.sku, almacen_id: a.id, cantidad, reservado,
