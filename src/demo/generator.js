@@ -169,7 +169,7 @@
       const limite = rng.pick([500, 1000, 2000, 5000, 8000]);
       clientes.push({
         id: `${empresaId}-CLI-${pad(i + 1, 3)}`, nombre, rif: rifVe(rng),
-        tipo: tipo.id, tipo_cliente_id: tipo.id, lista_precio_id: lista.id, listaPrecio: lista.id,
+        tipo: tipo.id, tipo_cliente_id: tipo.id, lista_precio_id: lista.id, lista_precio: lista.id, listaPrecio: lista.id,
         contacto: rng.pick(cat.NOMBRES) + ' ' + rng.pick(cat.APELLIDOS), telefono: telefonoVe(rng),
         email: emailDe(nombre), ciudad: rng.pick(cat.CIUDADES_VE), direccion: 'Zona ' + rng.int(1, 20),
         limite_credito: limite, dias_credito: rng.pick([0, 15, 30, 45]), empresas: [empresaId],
@@ -177,6 +177,41 @@
       });
     }
     db.insert('clientes', clientes);
+
+    // ── Listas de precios personalizadas ─────────────────────────────────────
+    // Ademas de las 4 listas por tipo de cliente (arriba), se agregan listas 'custom' con
+    // precios manuales por SKU y asignadas a un grupo puntual de clientes (no por segmento):
+    // asi el modulo muestra tanto el caso comun (descuento plano por tipo) como el caso de
+    // negociacion cliente-a-cliente, que es como se usa `lista_precios_detalle` en el sistema real.
+    const listasCustomSpec = [
+      ['Precio VIP Corporativo', 0.92],   // ~8% bajo el precio base en los SKUs con override
+      ['Precio Mayoreo Especial', 0.88],  // ~12% bajo el precio base, clientes frecuentes puntuales
+    ];
+    const listasCustom = listasCustomSpec.map((s, i) => ({
+      id: `${empresaId}-LP-C${i + 1}`, nombre: s[0], tipo_cliente_id: null,
+      modo: 'custom', valor: 0, empresa_id: empresaId, activo: true,
+    }));
+    db.insert('listas_precios', listasCustom);
+
+    const detalleRows = [];
+    listasCustom.forEach((lc, li) => {
+      const factor = listasCustomSpec[li][1];
+      // Overrides sobre una porcion del catalogo, no todo: asi se ve una lista con precios
+      // negociados puntuales, no un descuento plano disfrazado.
+      const skusConOverride = rng.pickN(productos, Math.round(productos.length * 0.4));
+      skusConOverride.forEach(p => {
+        detalleRows.push({
+          id: `${lc.id}-${p.sku}`, lista_id: lc.id, sku: p.sku,
+          precio: round2(p.base * factor), empresa_id: empresaId,
+        });
+      });
+      // 3-4 clientes puntuales por lista, tomados de los ya generados (mutan el objeto ya
+      // insertado en `clientes`, que db.insert guarda por referencia).
+      rng.pickN(clientes, Math.min(4, clientes.length)).forEach(c => {
+        c.lista_precio_id = lc.id; c.lista_precio = lc.id; c.listaPrecio = lc.id;
+      });
+    });
+    db.insert('lista_precios_detalle', detalleRows);
 
     // ── Proveedores ──────────────────────────────────────────────────────────
     const proveedores = [];
