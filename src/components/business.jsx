@@ -5090,6 +5090,7 @@ function AccountsPage({ tipo }) {
               style={{position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', background:'transparent', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13, padding:'2px 4px', lineHeight:1}}>✕</button>}
           </div>
           {/* Agrupar por (cliente / modalidad / estado) */}
+          <window.MobileFilters count={[groupBy, (Array.isArray(catF)&&catF.length?'x':''), ivaF, fechaDesde].filter(Boolean).length}>
           <select className="select" value={groupBy} onChange={e=>{setGroupBy(e.target.value);setExpandedG(new Set());setPage(1);}} style={{fontSize:12, padding:'4px 8px'}}>
             <option value="">Sin agrupar</option>
             <option value="entidad">Agrupar por {esCobrar?'cliente':'proveedor'}</option>
@@ -5201,6 +5202,7 @@ function AccountsPage({ tipo }) {
             <window.DateRangeFilter desde={fechaDesde} hasta={fechaHasta}
               onChange={(d, h) => { setFechaDesde(d || ''); setFechaHasta(h || ''); setPage(1); }}/>
           </div>
+          </window.MobileFilters>
           <span className="ml-auto small">
             {(cobradosLoading || cobradosPagLoading) && usaCobrados ? 'Cargando cobradas…' : `${totalDocs.toLocaleString('es-VE')} documentos`}
             {selected.size>0?` · ${selected.size} seleccionados`:''}

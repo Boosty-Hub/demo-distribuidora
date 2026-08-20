@@ -2910,7 +2910,10 @@ function POSCompose({ onOpenList, editingDoc, onEditDone }) {
       {/* ── Modalidad de pago ── */}
       <div className="card" style={{padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:14, flexWrap:'wrap'}}>
         <div style={{fontSize:13, fontWeight:600, whiteSpace:'nowrap', color:'var(--text)'}}>Modalidad de pago:</div>
-        <div style={{display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1px solid var(--border)', flexShrink:0}}>
+        {/* `overflowX:auto`: en móvil las 4 opciones no entran en una fila y antes se cortaban
+            en seco contra el borde de la pantalla, sin ningún indicio de que había más — ahora se
+            puede deslizar para llegar a "Paralelo". En desktop nunca activa el scroll (entra sobrado). */}
+        <div style={{display:'flex', gap:0, borderRadius:8, overflow:'hidden', border:'1px solid var(--border)', flexShrink:1, maxWidth:'100%', overflowX:'auto', WebkitOverflowScrolling:'touch'}}>
           {[
             { id:'divisas',   label:'Divisas USD',          hint:'Precio en USD sin ajuste' },
             { id:'bcv',       label: cobertura == null ? 'BCV + Cob.' : `BCV +${cobertura}%`,
@@ -5494,6 +5497,7 @@ function DocumentList({ stage, onOpen, onBack, onSwitchStage, onEdit }) {
               >✕</button>
             )}
           </div>
+          <window.MobileFilters count={[vendedorF, creadoPorF, fechaDesde, modalidadF, almacenF, tipoEntregaF, cobroF, tipoFacturaF, envioF].filter(Boolean).length}>
           <div className="filtro-mini">
             <div className="filtro-mini-label">Vendedor</div>
             <select className="select" value={vendedorF} onChange={e=>setVendedorF(e.target.value)}>
@@ -5578,6 +5582,7 @@ function DocumentList({ stage, onOpen, onBack, onSwitchStage, onEdit }) {
               onClick={() => { setModalidadF(''); setAlmacenF(''); setTipoEntregaF(''); setCobroF(''); setTipoFacturaF(''); setEnvioF(''); }}
               style={{fontSize:11, padding:'3px 7px', color:'var(--danger)', alignSelf:'flex-end'}}>✕ filtros</button>
           )}
+          </window.MobileFilters>
           <div className="ml-auto" style={{display:'flex', alignItems:'center', gap:10}}>
             {searchStageCounts && (
               <span className="small" style={{padding:'4px 10px', background:'var(--brand-soft)', color:'var(--brand)', borderRadius:6, fontWeight:600, whiteSpace:'nowrap'}}>

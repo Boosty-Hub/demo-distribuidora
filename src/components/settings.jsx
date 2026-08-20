@@ -1361,6 +1361,15 @@ window.canUser = function(action, moduleId) {
 };
 
 window.ConfigRolesPage = function ConfigRolesPage() {
+  // Lista de roles + matriz de permisos son un panel dividido lado a lado (ancho fijo + flex:1).
+  // Sin esto, en móvil las dos columnas se comprimían una al lado de la otra en vez de apilarse —
+  // ninguna de las dos entraba, y el texto quedaba cortado ("Gerente de Operacion...").
+  const [isMobile, setIsMobile] = uState(() => window.innerWidth <= 768);
+  uEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth <= 768); }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const [rolesList, setRolesList] = uState(() => window.getRolesList());
   const [rolesConfig, setRolesConfig] = uState(() => window.getRolesConfig());
   const [selRole, setSelRole] = uState(() => window.getRolesList()[0]?.nombre || 'Administrador');
@@ -1612,9 +1621,9 @@ window.ConfigRolesPage = function ConfigRolesPage() {
 
       {showActivity && <ActivityLogModal modulo="roles" onClose={()=>setShowActivity(false)}/>}
 
-      <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+      <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', gap:16, alignItems: isMobile ? 'stretch' : 'flex-start' }}>
         {/* Left panel: roles list */}
-        <div style={{ width:220, flexShrink:0 }}>
+        <div style={{ width: isMobile ? '100%' : 220, flexShrink:0 }}>
           <div className="card" style={{ padding:4 }}>
             {rolesList.map(r => {
               const active = selRole === r.nombre;
@@ -2259,7 +2268,7 @@ window.ConfigSystemPage = function ConfigSystemPage() {
           <div className="card">
             <div className="card-header"><Icon name="box" size={16}/><div className="card-title">Identidad visual</div></div>
             <div className="card-body">
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:24}}>
+              <div className="grid-2" style={{gap:24}}>
 
                 {/* Logo */}
                 <div>

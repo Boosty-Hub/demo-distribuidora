@@ -1012,6 +1012,28 @@ window.TablaColumnas = function TablaColumnas({ moduloId, tablaRef, style = {} }
   );
 };
 
+// MobileFilters — envuelve un grupo de filtros (selects, fechas, etc.) para que en móvil queden
+// COLAPSADOS detrás de un botón "Filtros", en vez de apilarse y empujar la lista/tabla varias
+// pantallas hacia abajo. En desktop es transparente: `display:contents` hace que el wrapper no
+// exista para el layout, así los hijos siguen participando del flex-wrap del contenedor real
+// (`.doclist-filtros`, etc.) exactamente como si este componente no estuviera.
+// No envolver el buscador principal ni el contador de resultados — esos quedan siempre visibles;
+// solo los filtros secundarios (vendedor, fecha, almacén...) van adentro.
+window.MobileFilters = function MobileFilters({ children, count }) {
+  const { useState: uSt } = React;
+  const [open, setOpen] = uSt(false);
+  return (
+    <>
+      <button type="button" className="mobile-filters-toggle" onClick={() => setOpen(o => !o)}>
+        <window.Icon name="filter" size={13} />
+        Filtros{count ? ` (${count})` : ''}
+        <window.Icon name={open ? 'chevronU' : 'chevronD'} size={12} />
+      </button>
+      <div className={'mobile-filters-body' + (open ? ' is-open' : '')}>{children}</div>
+    </>
+  );
+};
+
 // DateRangeFilter — un solo campo desplegable con presets + "Desde"/"Hasta" juntos (evita 2 inputs
 // sueltos en la toolbar). Controlado: desde/hasta (strings 'YYYY-MM-DD' o ''), onChange(desde,hasta).
 // presets opcional: [{ id, label, range(): [desdeISO, hastaISO] }] — si no se pasa, usa el set default

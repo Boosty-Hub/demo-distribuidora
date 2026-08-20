@@ -1339,6 +1339,7 @@ window.AnticiposPage = function AnticiposPage() {
           <React.Fragment>
             <input className="input sm" placeholder="Buscar cliente, RIF, referencia..."
                    value={q} onChange={e => setQ(e.target.value)} style={{minWidth:220}}/>
+            <window.MobileFilters count={[filtroEstado !== 'con_saldo' ? filtroEstado : '', fDesde, fHasta, fUsuario, fCliente].filter(Boolean).length}>
             <select className="input sm" value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
               <option value="con_saldo">Con saldo disponible</option>
               <option value="sin_identificar">Sin identificar{sinIdentificar.length ? ` (${sinIdentificar.length})` : ''}</option>
@@ -1364,6 +1365,7 @@ window.AnticiposPage = function AnticiposPage() {
                 <Icon name="x" size={12}/>Limpiar
               </button>
             )}
+            </window.MobileFilters>
             <span className="ml-auto small muted">
               {rows.length.toLocaleString('es-VE')} anticipo{rows.length !== 1 ? 's' : ''}
               {hayFiltro && <span> de {todos.length.toLocaleString('es-VE')}</span>}

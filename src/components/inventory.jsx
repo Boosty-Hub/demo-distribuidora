@@ -576,6 +576,7 @@ window.InventoryPage = function InventoryPage() {
             placeholder="Buscar SKU, nombre o marca... (Enter para añadir)"
             style={{flex:'1 1 240px', minWidth:200}}
           />
+          <window.MobileFilters count={[catFilter, marcaFilter, stockFilter, almacenFilter !== 'all' ? almacenFilter : ''].filter(Boolean).length}>
           <select className="select" value={catFilter} onChange={e=>setCatFilter(e.target.value)}>
             <option value="">Todas categorías</option>
             {getCategorias().map(c => <option key={c}>{c}</option>)}
@@ -601,6 +602,7 @@ window.InventoryPage = function InventoryPage() {
               <Icon name="x" size={12}/>Limpiar
             </button>
           )}
+          </window.MobileFilters>
           <span className="small muted ml-auto" style={{whiteSpace:'nowrap', alignSelf:'center'}}>
             {rows.length} / {SSData.productos.length} productos
           </span>
@@ -3908,6 +3910,7 @@ function MovimientosInventarioPage({ onBack }) {
           <Icon name="search" size={14} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)' }}/>
           <input className="input" style={{ paddingLeft:30 }} placeholder="SKU, producto, motivo, usuario…" value={search} onChange={e=>{ setSearch(e.target.value); setPage(1); }}/>
         </div>
+        <window.MobileFilters count={[tipoF, origenF, almF, groupBy].filter(Boolean).length}>
         <select className="select" style={{ width:110 }} value={tipoF} onChange={e=>{ setTipoF(e.target.value); setPage(1); }}>
           <option value="">Todos los tipos</option>
           {['entrada','salida'].map(t => (
@@ -3938,6 +3941,7 @@ function MovimientosInventarioPage({ onBack }) {
             <Icon name="x" size={12}/>Limpiar
           </button>
         )}
+        </window.MobileFilters>
       </div>
 
       {/* Grouped view */}
@@ -4348,6 +4352,7 @@ window.PricesPage = function PricesPage() {
                   placeholder="Buscá en tiempo real (Enter para fijar como filtro)…"
                 />
               </div>
+              <window.MobileFilters count={[catFilter, marcaFilter, margenFilter].filter(Boolean).length}>
               <select className="select sm" value={catFilter} onChange={e=>setCatFilter(e.target.value)} title="Filtrar por categoría">
                 <option value="">Todas categorías</option>
                 {[...new Set((SSData.productos||[]).map(p=>p.categoria).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).map(c => <option key={c} value={c}>{c}</option>)}
@@ -4367,6 +4372,7 @@ window.PricesPage = function PricesPage() {
                   <Icon name="x" size={12}/>Limpiar
                 </button>
               )}
+              </window.MobileFilters>
             </div>
             <div className="tbl-scroll" style={{maxHeight:560}}>
               <table className="tbl">

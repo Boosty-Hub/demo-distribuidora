@@ -128,6 +128,17 @@ window.ChatPanel = function ChatPanel({ open, setOpen, unread, setUnread }) {
 };
 
 window.ChatPage = function ChatPage() {
+  // En desktop las 3 columnas (canales / hilo / miembros) conviven; en móvil no entran ni
+  // comprimidas (quedaba sin verse ningún mensaje) — se muestra UNA por vez, como cualquier app de
+  // chat: lista de canales primero, y al tocar uno se pasa al hilo con un botón "Atrás".
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+  const [mobileView, setMobileView] = useState('list'); // 'list' | 'thread' (solo aplica en móvil)
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth <= 768); }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <div className="page" style={{paddingBottom: 24}}>
       <div className="page-header">
@@ -145,20 +156,25 @@ window.ChatPage = function ChatPage() {
         </div>
       </div>
 
-      <div className="card" style={{padding: 0, display: 'grid', gridTemplateColumns: '240px 1fr 260px', height: 'calc(100vh - 180px)', minHeight: 520, overflow: 'hidden'}}>
-        <FullChatChannels/>
-        <FullChatThread/>
-        <FullChatMembers/>
+      <div className="card" style={{padding: 0, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '240px 1fr 260px', height: 'calc(100vh - 180px)', minHeight: 520, overflow: 'hidden'}}>
+        {(!isMobile || mobileView === 'list') && (
+          <FullChatChannels onOpen={() => setMobileView('thread')}/>
+        )}
+        {(!isMobile || mobileView === 'thread') && (
+          <FullChatThread isMobile={isMobile} onBack={() => setMobileView('list')}/>
+        )}
+        {!isMobile && <FullChatMembers/>}
       </div>
     </div>
   );
 };
 
-function FullChatChannels() {
+function FullChatChannels({ onOpen }) {
   const initId = useMemo(() => defaultChannel('grupo'), []);
   const [active, setActive] = useState(initId);
   window.__fullChatActive = [active, setActive];
   const myId = currentUserId();
+  function pick(id) { setActive(id); onOpen?.(); }
   return (
     <div style={{borderRight: '1px solid var(--border)', background: 'var(--bg-sunken)', display: 'flex', flexDirection: 'column', minHeight: 0}}>
       <div style={{padding: 10, borderBottom: '1px solid var(--border)'}}>
@@ -167,7 +183,7 @@ function FullChatChannels() {
       <div style={{overflowY: 'auto', flex: 1, padding: 6}}>
         <div style={{padding: '8px 10px 4px', fontSize: 11, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.06em'}}>Grupos</div>
         {SSData.canalesChat.filter(c=>c.tipo==='grupo').map(c => (
-          <div key={c.id} onClick={()=>setActive(c.id)} style={{padding:'8px 10px', borderRadius:6, cursor: 'pointer', background: active===c.id ? 'var(--bg-elev)':'transparent'}}>
+          <div key={c.id} onClick={()=>pick(c.id)} style={{padding:'8px 10px', borderRadius:6, cursor: 'pointer', background: active===c.id ? 'var(--bg-elev)':'transparent'}}>
             <div className="flex items-center gap-2">
               <span style={{color:'var(--text-muted)', fontSize: 12}}>#</span>
               <span style={{flex:1, fontSize: 13, fontWeight: active===c.id?600:400}}>{c.nombre}</span>
@@ -180,7 +196,7 @@ function FullChatChannels() {
         {SSData.canalesChat.filter(c=>c.tipo==='dm').map(c => {
           const other = SSData.usuarios.find(u => c.miembros?.includes(u.id) && u.id !== myId);
           return (
-            <div key={c.id} onClick={()=>setActive(c.id)} style={{padding:'8px 10px', borderRadius:6, cursor:'pointer', background: active===c.id ? 'var(--bg-elev)':'transparent'}}>
+            <div key={c.id} onClick={()=>pick(c.id)} style={{padding:'8px 10px', borderRadius:6, cursor:'pointer', background: active===c.id ? 'var(--bg-elev)':'transparent'}}>
               <div className="flex items-center gap-2">
                 <div style={{position:'relative', flexShrink: 0}}>
                   <Avatar user={other} size={22}/>
@@ -197,7 +213,7 @@ function FullChatChannels() {
   );
 }
 
-function FullChatThread() {
+function FullChatThread({ isMobile, onBack }) {
   const [active] = window.__fullChatActive || [defaultChannel('grupo'), ()=>{}];
   const [msgs, setMsgs] = useState(SSData.mensajesChat || {});
   const [text, setText] = useState('');
@@ -216,6 +232,9 @@ function FullChatThread() {
   return (
     <div style={{display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0}}>
       <div style={{padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10}}>
+        {isMobile && (
+          <button className="icon-btn" onClick={onBack} title="Volver a los canales"><Icon name="chevronL" size={16}/></button>
+        )}
         <div style={{flex: 1}}>
           <div style={{fontSize: 14, fontWeight: 600}}>{channel?.tipo==='grupo' ? '# '+channel?.nombre : channel?.nombre}</div>
           <div className="small">{channel?.miembros?.length ?? 0} miembros</div>

@@ -593,6 +593,23 @@ table { border-collapse: collapse; }
 }
 .filtro-mini .select, .filtro-mini .input { font-size: 12px; padding: 5px 8px; min-width: 92px; }
 .filtro-mini .ss-btn { font-size: 12px; padding: 5px 8px; }
+
+/* MobileFilters (core.jsx): en desktop es invisible para el layout (`display:contents`, los hijos
+   siguen siendo flex-items directos del contenedor real). En móvil, colapsa los filtros detrás de
+   un botón — antes cada filtro secundario ocupaba su propia fila y había que scrollear varias
+   pantallas para llegar a la primera fila de datos. */
+.mobile-filters-toggle { display: none; }
+.mobile-filters-body { display: contents; }
+@media (max-width: 768px) {
+  .mobile-filters-toggle {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; margin: 2px 0 8px; padding: 9px 12px;
+    border: 1px solid var(--border); border-radius: 9px; background: var(--bg-sunken);
+    color: var(--text); font-weight: 600; font-size: 13px; cursor: pointer;
+  }
+  .mobile-filters-body { display: none; }
+  .mobile-filters-body.is-open { display: contents; }
+}
 .tbl-scroll { overflow-x: auto; }
 table.tbl {
   width: 100%;
@@ -2824,6 +2841,10 @@ table.tbl {
   .ss-story-body { flex-wrap: wrap; gap: 10px; }
   .ss-story-actions { width: 100%; justify-content: space-between; }
   .ss-story-launch-text { display: none; }
+  /* Más arriba que en desktop: el FAB del carrito del POS (`.pos-cart-fab`) ocupa todo el ancho
+     inferior en móvil (left:12/right:12/bottom:12) y con el mismo `bottom` de siempre el lanzador
+     del tutorial quedaba encima tapándolo (z-index más alto) en vez de al lado. */
+  .ss-story-launcher { bottom: 82px; }
 }
 
 /* ══════════════ Torre de IA (panel contextual por módulo) ══════════════
