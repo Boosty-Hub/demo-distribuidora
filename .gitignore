@@ -1,0 +1,14 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+
+# Node / build
+node_modules/
+# El build (dist/ + version.json) se genera en CI (.github/workflows/deploy.yml) al desplegar;
+# no hace falta commitearlo. Localmente: `node build.js` antes de `npx serve src`.
+src/dist/
+src/version.json

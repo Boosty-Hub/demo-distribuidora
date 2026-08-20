@@ -1,0 +1,11 @@
+{
+  "name": "demo-distribuidora",
+  "private": true,
+  "description": "Demo ERP multi-empresa (Distribuidora Demo) — 100% estatico, datos ficticios generados en el cliente.",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1"
+  }
+}

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es-VE">
+<head>
+<meta charset="UTF-8">
+<base id="ss-base" href="/">
+<!-- Demo 100% estatica (GitHub Pages): un sitio de proyecto se sirve bajo /<repo>/, no en la raiz.
+     Este script detecta el prefijo ANTES de que el parser llegue a theme.css/dist/*.js (que son
+     rutas relativas) y corrige el <base>, así el mismo index.html sirve para dev local (raíz) y
+     para Pages (bajo /demo-distribuidora/) sin build condicional. `ssBase`/`ssPath` los usa el
+     código que arma rutas absolutas con history.pushState/replaceState (ver app-bootstrap/shell). -->
+<script>
+(function () {
+  var REPO = 'demo-distribuidora';
+  var prefix = /\.github\.io$/.test(location.hostname) ? ('/' + REPO) : '';
+  document.getElementById('ss-base').setAttribute('href', prefix + '/');
+  window.__SS_BASE = prefix;
+  window.ssBase = function (p) { return prefix + p; };
+  window.ssPath = function (p) {
+    return (prefix && p.indexOf(prefix) === 0) ? (p.slice(prefix.length) || '/') : p;
+  };
+})();
+</script>
+<title>Distribuidora Demo · ERP</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Preconnect: establece TCP antes de que los scripts los necesiten -->
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://unpkg.com">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
+<!-- Splash inline: visible antes de que cualquier JS ejecute -->
+<style>
+#ss-splash{display:grid;place-items:center;height:100vh;background:#0e0e1a}
+#ss-splash-logo{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,oklch(0.55 0.19 255),oklch(0.68 0.14 55));display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px;margin:0 auto 16px;font-family:system-ui,sans-serif}
+#ss-splash-txt{color:#7f7e78;font-size:13px;font-family:system-ui,sans-serif}
+@keyframes ss-pulse{0%,100%{opacity:.5}50%{opacity:1}}
+#ss-splash-txt{animation:ss-pulse 1.4s ease-in-out infinite}
+</style>
+<!-- Tamaño de letra grande (accesibilidad): preferencia PERSONAL del navegador (no de la empresa),
+     aplicada acá — antes de cualquier pintado — para que no haya un parpadeo de texto chico que
+     salte a grande medio segundo después. Ver Ajustes → Sistema, sección Accesibilidad. -->
+<script>
+(function () {
+  try {
+    var v = localStorage.getItem('ss-font-scale');
+    if (v === 'grande' || v === 'muy-grande') {
+      document.documentElement.style.zoom = (v === 'muy-grande') ? '130%' : '115%';
+    }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+<!-- Splash visible desde el primer byte del HTML, React lo reemplaza al montar -->
+<div id="root"><div id="ss-splash"><div><div id="ss-splash-logo">D</div><div id="ss-splash-txt">Iniciando Distribuidora Demo…</div></div></div></div>
+
+<!-- Vendor (CDN, sin bundling). `defer`: se descargan en paralelo y ejecutan en orden
+     tras el parse, sin frenar el primer paint del splash. React/ReactDOM en build de PRODUCCIÓN.
+     Nota: NO se carga @supabase/supabase-js — esta demo no tiene backend; window.sb lo define
+     dist/mock-sb.js (ver más abajo) con la misma forma de API que consume src/supabase.js. -->
+<script defer src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script defer src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<!-- jsPDF y XLSX ya NO se descargan en el arranque: eran 431 kB comprimidos (116 + 315) en CADA
+     carga, para dos cosas que la mayoría de las sesiones no hace — imprimir y exportar. Ahora los
+     trae `window.ssVendor(nombre)` cuando se necesitan, y además se precargan cuando el navegador
+     queda libre, así el primer PDF tampoco espera. Ver el guard en pdf.jsx y core.jsx. -->
+<script>
+  window.__ssVendors = {
+    jspdf: { url: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', listo: () => !!(window.jspdf && window.jspdf.jsPDF) },
+    // `xlsx-js-style` es el MISMO SheetJS 0.18.5 (misma API, mismo window.XLSX) con soporte de
+    // estilos de celda: la build comunitaria de `xlsx` acepta el `.s` y lo descarta al escribir,
+    // así que los encabezados con color salían en blanco y negro sin ningún error. Además pesa
+    // 141 kB contra 315 kB de xlsx.full.min.js.
+    xlsx:  { url: 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',  listo: () => !!window.XLSX },
+  };
+  const _vendorEnVuelo = {};
+  window.ssVendor = function (nombre) {
+    const v = window.__ssVendors[nombre];
+    if (!v) return Promise.reject(new Error('vendor desconocido: ' + nombre));
+    if (v.listo()) return Promise.resolve(true);
+    if (_vendorEnVuelo[nombre]) return _vendorEnVuelo[nombre];
+    // Con aviso: bajar 315 kB de XLSX en una conexión lenta se nota, y el usuario acaba de hacer
+    // clic en "Exportar". `ssBusy` espera 220 ms antes de mostrarse, así que si ya está en caché
+    // del navegador no parpadea nada.
+    const busy = window.ssBusy && window.ssBusy.start(nombre === 'xlsx' ? 'Preparando la exportación…' : 'Preparando el PDF…');
+    _vendorEnVuelo[nombre] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = v.url;
+      s.onload = () => { if (window.ssBusy) window.ssBusy.end(busy); resolve(true); };
+      s.onerror = (e) => {
+        if (window.ssBusy) window.ssBusy.end(busy);
+        _vendorEnVuelo[nombre] = null;   // que el próximo intento lo reintente
+        reject(e);
+      };
+      document.head.appendChild(s);
+    });
+    return _vendorEnVuelo[nombre];
+  };
+  // Precarga oportunista: cuando el navegador está libre y la app ya arrancó. Si el usuario imprime
+  // antes, `ssVendor` devuelve la misma promesa en vuelo — nunca se baja dos veces.
+  window.addEventListener('load', () => {
+    const precargar = () => { window.ssVendor('jspdf').catch(() => {}); window.ssVendor('xlsx').catch(() => {}); };
+    if (window.requestIdleCallback) window.requestIdleCallback(precargar, { timeout: 6000 });
+    else setTimeout(precargar, 3000);
+  });
+</script>
+
+<!-- Data + capa mock + supabase (sin JSX) -->
+<!-- Aritmética de dinero (ssRound2 / ssSaldada). PRIMERO: la usan supabase.js y los modales de
+     cobro. Ver src/money.js — un residuo de coma flotante dejaba cuentas saldadas en "parcial". -->
+<script defer src="dist/money.js"></script>
+<script defer src="dist/data.js"></script>
+<!-- Motor de datos mock (demo sin backend): PRNG con semilla, catálogos, generador del dataset
+     relacional de las 2 empresas, y el cliente falso window.sb que consume src/supabase.js.
+     Deben ir ANTES de supabase.js — supabase.js llama window.__ssCreateMockClient() al definirse. -->
+<script defer src="dist/demo-prng.js"></script>
+<script defer src="dist/demo-catalogos.js"></script>
+<script defer src="dist/demo-generator.js"></script>
+<script defer src="dist/demo-db.js"></script>
+<script defer src="dist/demo-mock-sb.js"></script>
+<script defer src="dist/supabase.js"></script>
+
+<!-- Core eager — siempre necesario (login, shell, etc). defer preserva el orden de ejecución. -->
+<script defer src="dist/core.js"></script>
+<script defer src="dist/virtual.js"></script>
+<script defer src="dist/data-table.js"></script>
+<script defer src="dist/activity-log.js"></script>
+<script defer src="dist/shell.js"></script>
+<script defer src="dist/login.js"></script>
+<script defer src="dist/story-mode.js"></script>
+<!-- Helpers globales eager: pos.jsx define getDisponible/getNextDocId; settings.jsx define canUser/getAlmacenes/getEmpresaConfig/getCamposConfig; pdf.jsx define generateDocumentPDF -->
+<script defer src="dist/pos.js"></script>
+<script defer src="dist/settings.js"></script>
+<script defer src="dist/pdf.js"></script>
+<!-- app-bootstrap eager (defer): elimina el fetch aparte que antes hacía __loadChunk('app-bootstrap') tras las rutas -->
+<script defer src="dist/app-bootstrap.js"></script>
+
+<!-- Loader de chunks lazy por ruta -->
+<script>
+  // Marcar como cargados los chunks que ya van eager en <script> tags arriba (incl. app-bootstrap)
+  window.__loadedChunks = new Set(['core','virtual','data-table','activity-log','shell','login','story-mode','pos','settings','pdf','app-bootstrap','demo-prng','demo-catalogos','demo-generator','demo-db','demo-mock-sb']);
+  window.__loadChunk = function(name) {
+    if (window.__loadedChunks.has(name)) return Promise.resolve();
+    window.__loadedChunks.add(name);
+    // Indicador global: la descarga del chunk es la primera espera al cambiar de
+    // módulo y hasta ahora no se veía en ningún lado (la pantalla quedaba igual).
+    // `?.` porque este script inline se evalúa antes que dist/core.js.
+    const busy = window.ssBusy?.start('Cargando módulo…');
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'dist/' + name + '.js';
+      s.onload = () => {
+        window.ssBusy?.end(busy);
+        window.dispatchEvent(new CustomEvent('ss-chunk-loaded', { detail: name }));
+        resolve();
+      };
+      s.onerror = (err) => {
+        window.ssBusy?.end(busy);
+        window.__loadedChunks.delete(name);
+        reject(err);
+      };
+      document.head.appendChild(s);
+    });
+  };
+
+  // Mapa ruta → chunks necesarios (clave = primer segmento de path)
+  const ROUTE_CHUNKS = {
+    'inversiones':  ['inversiones'],
+    'retenciones':  ['retenciones'],
+    'pos':          ['pos','pdf'],
+    'cotizaciones': ['pos','pdf'],
+    'ordenes':      ['pos','pdf'],
+    'facturas':     ['pos','pdf'],
+    'despachos':    ['pos','pdf'],
+    'inventario':   ['inventory','pdf'],
+    'precios':      ['business'],
+    'cargas':       ['inventory'],
+    'dropshipping': ['dropshipping'],
+    'sync':         ['sync'],
+    'clientes':     ['business'],
+    'contactos':    ['business'],
+    'proveedores':  ['business'],
+    'vendedores':   ['vendedores'],
+    'cxc':          ['business'],
+    'cxp':          ['business'],
+    'banco':        ['business'],
+    'anticipos':    ['anticipos'],
+    'chat':         ['chat'],
+    'asistente':    ['asistente'],
+    'drivers':      ['drivers'],
+    'incidencias':  ['drivers'],
+    'devoluciones': ['returns'],
+    'garantias':    ['garantias'],
+    'fabricacion':  ['fabricacion'],
+    'portal-cliente':['client-portal'],
+    'public':       ['public-doc'],
+    'reportes':     ['reportes'],
+    'comisiones':   ['comisiones'],
+    'finanzas-reportes': ['finanzas-reportes'],
+    'config':       ['settings'],
+  };
+
+  window.__loadRouteChunks = async function(pathname) {
+    const segs = (window.ssPath ? window.ssPath(pathname || '/') : (pathname || '/')).replace(/^\//, '').split('/').filter(Boolean);
+    if (!segs.length) {
+      await window.__loadChunk('pos');
+      return;
+    }
+    const seg0 = segs[0];
+    // Si seg0 es un modulo conocido la URL viene sin prefijo de empresa.
+    // Si no, seg0 es la empresa y seg1 es el modulo.
+    const moduleSeg = ROUTE_CHUNKS[seg0] ? seg0 : (segs[1] || 'pos');
+    const chunks = ROUTE_CHUNKS[moduleSeg] || ['pos'];
+    await Promise.all(chunks.map(window.__loadChunk));
+  };
+
+  // Cargar chunks de la ruta actual y luego montar la App
+  document.addEventListener('DOMContentLoaded', () => {
+    window.__loadRouteChunks(window.location.pathname)
+      .catch(err => console.error('Error cargando chunks de ruta:', err))
+      .then(() => window.__loadChunk('app-bootstrap'))
+      .then(() => { if (window.__ssMountApp) window.__ssMountApp(); });
+  });
+</script>
+</body>
+</html>
