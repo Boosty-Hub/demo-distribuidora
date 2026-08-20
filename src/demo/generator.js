@@ -215,6 +215,9 @@
     }));
     db.insert('cuentas_bancarias', cuentasBancarias);
 
+    // Categorías de EGRESO variadas: alimentan el desglose "En qué se gastó" de Reportes de
+    // Finanzas — con una sola categoría ("gastos") ese panel se veía como una sola barra enorme.
+    const CATEGORIAS_EGRESO = ['Nómina', 'Servicios', 'Alquiler', 'Transporte', 'Impuestos', 'Mantenimiento', 'Mercadeo'];
     const movs = [];
     cuentasBancarias.forEach((cta, ci) => {
       const n = rng.int(8, 22);
@@ -225,9 +228,11 @@
         saldo += monto;
         movs.push({
           id: `MOV-${empresaId}-${ci}-${pad(i, 3)}`, cuenta_id: cta.id, empresa_id: empresaId,
-          fecha: isoDate(daysAgo(rng.int(0, 180))), tipo: ingreso ? 'ingreso' : 'egreso', monto,
-          descripcion: ingreso ? 'Cobro de cliente' : rng.pick(['Pago a proveedor', 'Gasto operativo', 'Servicios']),
-          categoria: ingreso ? 'ventas' : 'gastos', conciliado: rng.chance(0.7), match_id: null,
+          fecha: isoDate(daysAgo(rng.int(0, 180))), tipo: ingreso ? 'ingreso' : 'egreso',
+          monto, monto_usd: monto, moneda: 'USD', tasa: null,
+          descripcion: ingreso ? 'Cobro de cliente' : rng.pick(['Pago a proveedor', 'Nómina quincenal', 'Servicio eléctrico', 'Flete', 'Impuesto municipal', 'Mantenimiento de local']),
+          categoria: ingreso ? 'ventas' : rng.pick(CATEGORIAS_EGRESO),
+          conciliado: rng.chance(0.7), match_id: null, creado_por: null, documento_id: null, pago_id: null,
         });
       }
       cta.saldo = round2(saldo);

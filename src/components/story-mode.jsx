@@ -29,6 +29,13 @@ const _FALLBACK_STEPS = [
     "icon": "pos"
   },
   {
+    "route": "/pos",
+    "title": "Torre de IA",
+    "body": "Esa pestaña morada a la derecha es la Torre de IA: un asistente que analiza el módulo en el que estás parado — en vivo, contra tus datos reales — y te deja insights concretos con una acción para aplicar (por ejemplo, \"3 cotizaciones sin convertir\" con un botón para recordarle al cliente). Tócala para desplegarla; ahí abajo también hay un mini-chat para preguntarle directamente sobre lo que estás viendo. No es una pantalla más: aparece en Punto de Venta, Inventario, Cuentas por Cobrar y Pagar, Bancos, Clientes, Proveedores, Reportes, Comisiones y Dropshipping — cada una con su propio análisis.",
+    "icon": "chart",
+    "target": ".ai-tower-tab"
+  },
+  {
     "route": "/cotizaciones",
     "title": "Cotizaciones",
     "body": "Esta es la lista de tus cotizaciones, es decir, las propuestas de venta que todavía no están confirmadas. Usa el buscador (cliente, RIF, ID o vendedor) y los filtros para encontrar la que necesitas, y marca 'Mostrar canceladas' si quieres ver también las anuladas. Haz clic en una para abrirla y convertirla en Orden de Venta.",
@@ -55,7 +62,7 @@ const _FALLBACK_STEPS = [
   {
     "route": "/inventario",
     "title": "Inventarios",
-    "body": "Este es tu catálogo de productos con el stock disponible en cada almacén. Puedes buscar por nombre, SKU o marca, filtrar por categoría, marca o nivel de stock, y alternar entre vista de tarjetas y lista. Haz clic en cualquier producto para ver su detalle completo (stock por almacén, movimientos, precios y seriales), y usa los botones para registrar ajustes de inventario o transferencias entre almacenes.",
+    "body": "Este es tu catálogo de productos con el stock disponible en cada almacén. Puedes buscar por nombre, SKU o marca, filtrar por categoría, marca o nivel de stock, y alternar entre vista de tarjetas y lista. Haz clic en cualquier producto para ver su detalle completo (stock por almacén, movimientos, precios y seriales), y usa los botones para registrar ajustes de inventario o transferencias entre almacenes. Fíjate en la Torre de IA a la derecha: ya te dejó cuántos productos están por debajo del mínimo y una sugerencia de traspaso entre almacenes.",
     "icon": "inventory"
   },
   {
@@ -97,7 +104,7 @@ const _FALLBACK_STEPS = [
   {
     "route": "/cxc",
     "title": "Cuentas por Cobrar",
-    "body": "Aquí ves todo lo que tus clientes te deben. Usa las pestañas Pendientes y Cobrados para separar las facturas por saldar de las ya pagadas, y arriba verás el total pendiente, lo vencido y el porcentaje ya cobrado. Puedes buscar por cliente, factura o RIF, agrupar la tabla por cliente, modalidad o estado, y al abrir un cliente registrar un cobro que descuenta su deuda.",
+    "body": "Aquí ves todo lo que tus clientes te deben. Usa las pestañas Pendientes y Cobrados para separar las facturas por saldar de las ya pagadas, y arriba verás el total pendiente, lo vencido y el porcentaje ya cobrado. Puedes buscar por cliente, factura o RIF, agrupar la tabla por cliente, modalidad o estado, y al abrir un cliente registrar un cobro que descuenta su deuda. La Torre de IA de la derecha ya priorizó qué cuentas vencidas cobrar primero — el mismo monto que ves en las tarjetas de arriba, calculado en vivo.",
     "icon": "cxc"
   },
   {

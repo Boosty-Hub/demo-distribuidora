@@ -49,6 +49,7 @@
     ordenes_fabricacion:    [{ re: /(?:^|,)\s*(?:(\w+):)?ordenes_fabricacion_items\(/, child: 'ordenes_fabricacion_items', fk: 'orden_fabricacion_id', many: true }],
     ordenes_compra:        [{ re: /(?:^|,)\s*(?:(\w+):)?ordenes_compra_items\(/, child: 'ordenes_compra_items', fk: 'orden_compra_id', many: true }],
     cuentas_pagar:         [{ re: /(?:^|,)\s*(?:(\w+):)?cuentas_bancarias\(/, child: 'cuentas_bancarias', fk: 'id', parentFk: 'cuenta_bancaria_id', many: false }],
+    movimientos_bancarios: [{ re: /(?:^|,)\s*(?:(\w+):)?cuentas_bancarias\(/, child: 'cuentas_bancarias', fk: 'id', parentFk: 'cuenta_id', many: false }],
   };
   function applyEmbeds(table, cols, rows) {
     const specs = EMBEDS[table];
@@ -436,26 +437,177 @@
     return saldo;
   }
 
+  // ── Lookups compartidos por los reportes (cliente/almacén/producto por id) ──
+  function porId(tabla) {
+    const map = new Map();
+    db().table(tabla).forEach(r => map.set(r.id, r));
+    return map;
+  }
+  function trimDe(fecha) { const m = Number(fecha.slice(5, 7)); return 'T' + Math.ceil(m / 3) + '-' + fecha.slice(0, 4); }
+
+  // get_ventas_pivot: agrupa documentos (o sus líneas, para dimensiones de producto) por
+  // CUALQUIERA de las ~19 dimensiones que ofrece Reportes Dinámicos. Las filas devueltas tienen
+  // que llamarse `dim1/dim2/dim3/monto/docs/unidades/costo/venta_margen/margen` — es el contrato
+  // que arma `serverRows` en reportes.jsx; devolver otros nombres (como antes) hacía que TODO se
+  // leyera como 0 sin ningún error, porque `Number(undefined) || 0` nunca avisa.
+  function dimValor(dimId, doc, item, ctx) {
+    switch (dimId) {
+      case 'dia': return doc.fecha;
+      case 'mes': return doc.fecha.slice(0, 7);
+      case 'trim': return trimDe(doc.fecha);
+      case 'año': return doc.fecha.slice(0, 4);
+      case 'vendedor': return doc.vendedor || 'N/D';
+      case 'cliente': return ctx.clientes.get(doc.cliente_id)?.nombre || 'N/D';
+      case 'tipo_cliente': {
+        const c = ctx.clientes.get(doc.cliente_id);
+        return ctx.tiposCliente.get(c?.tipo_cliente_id)?.nombre || 'N/D';
+      }
+      case 'lista': {
+        const c = ctx.clientes.get(doc.cliente_id);
+        return ctx.listas.get(c?.lista_precio_id)?.nombre || 'N/D';
+      }
+      case 'estado': return doc.estado || 'N/D';
+      case 'empresa': return ctx.empresaNombre;
+      case 'almacen': return ctx.almacenes.get(doc.almacen_id)?.nombre || 'N/D';
+      case 'fuente': return doc.fuente_venta || 'N/D';
+      case 'tipo_entrega': return doc.tipo_entrega || 'N/D';
+      case 'modalidad_pago': return doc.modalidad || 'N/D';
+      case 'documento': return doc.id;
+      case 'orden_origen': return doc.parent_id || doc.raiz_id || doc.id;
+      case 'producto': return item?.nombre || 'N/D';
+      case 'sku': return item?.sku || 'N/D';
+      case 'categoria': return ctx.productos.get(item?.sku)?.categoria || 'N/D';
+      case 'marca': return ctx.productos.get(item?.sku)?.marca || 'N/D';
+      default: return 'N/D';
+    }
+  }
   function ventasPivot(p) {
     const e = p.p_empresa_id;
-    const rows = db().table('documentos').filter(d => d.empresa_id === e && d.tipo === (p.p_tipo || 'factura') && d.fecha >= p.p_desde && d.fecha <= p.p_hasta);
-    const map = {};
-    rows.forEach(r => {
-      const key = r[p.p_dim1] || r.vendedor || 'N/D';
-      if (!map[key]) map[key] = { dim: key, total: 0, cantidad: 0 };
-      map[key].total += r.total; map[key].cantidad += 1;
+    const docs = db().table('documentos').filter(d => d.empresa_id === e && d.tipo === (p.p_tipo || 'factura') && d.fecha >= p.p_desde && d.fecha <= p.p_hasta && d.estado !== 'cancelado');
+    const ctx = {
+      clientes: porId('clientes'), tiposCliente: porId('tipos_cliente'), listas: porId('listas_precios'),
+      almacenes: porId('almacenes'), productos: new Map(db().table('productos').map(x => [x.sku, x])),
+      empresaNombre: db().table('empresas').find(x => x.id === e)?.nombre || e,
+    };
+    const dims = [p.p_dim1, p.p_dim2, p.p_dim3].filter(Boolean);
+    const map = new Map();
+    function acumular(keyParts, monto, docId, unidades, costo) {
+      const key = keyParts.join('');
+      if (!map.has(key)) map.set(key, { dim1: keyParts[0], dim2: keyParts[1] ?? null, dim3: keyParts[2] ?? null, monto: 0, docsSet: new Set(), unidades: 0, costo: 0 });
+      const g = map.get(key);
+      g.monto += monto; g.docsSet.add(docId); g.unidades += unidades; g.costo += costo;
+    }
+    // Siempre por LÍNEA, sea la dimensión de producto o no: así costo/unidades/margen salen
+    // bien en cualquier agrupación (vendedor, mes, cliente…) — la suma de los items de un
+    // documento coincide exacto con su total, así que agrupar por header no pierde precisión.
+    const items = db().table('documentos_items');
+    docs.forEach(doc => {
+      items.filter(i => i.documento_id === doc.id).forEach(item => {
+        const keyParts = dims.map(d => dimValor(d, doc, item, ctx));
+        acumular(keyParts, item.subtotal || 0, doc.id, item.cantidad || 0, (item.costo || 0) * (item.cantidad || 0));
+      });
     });
-    return Object.values(map).map(v => ({ ...v, total: round2(v.total) }));
+    return [...map.values()].map(g => ({
+      dim1: g.dim1, dim2: g.dim2, dim3: g.dim3,
+      monto: round2(g.monto), docs: g.docsSet.size, unidades: g.unidades,
+      costo: round2(g.costo), venta_margen: round2(g.monto), margen: round2(g.monto - g.costo),
+    }));
   }
 
+  // get_finanzas_reporte: panel ejecutivo completo — KPIs + serie mensual + tops + aging CxC/CxP.
+  // Mismo motivo que ventasPivot: finanzas-reportes.jsx lee `data.kpis.*`, `data.serie`,
+  // `data.top_clientes`, etc. — sin ese envoltorio exacto, cae a `{}` en todos lados y todo da 0.
   function finanzasReporte(p) {
     const e = p.p_empresa_id;
-    const facturas = db().table('documentos').filter(d => d.empresa_id === e && d.tipo === 'factura' && d.fecha >= p.p_desde && d.fecha <= p.p_hasta);
-    const ventas = round2(facturas.reduce((s, f) => s + f.total, 0));
-    const cobrado = round2(facturas.filter(f => f.estado_cobro === 'pagada').reduce((s, f) => s + f.total, 0));
+    const clientes = porId('clientes');
+    const productos = new Map(db().table('productos').map(x => [x.sku, x]));
+    const facturas = db().table('documentos').filter(d => d.empresa_id === e && d.tipo === 'factura' && d.fecha >= p.p_desde && d.fecha <= p.p_hasta && d.estado !== 'cancelado');
+    const items = db().table('documentos_items');
+
+    let ventas = 0, costo = 0, unidades = 0, docsN = facturas.length;
+    const serieMap = new Map(); // mes -> {ventas, margen, costo, docs}
+    const porCliente = new Map(), porVendedor = new Map(), porProducto = new Map(), porCategoria = new Map();
+    facturas.forEach(f => {
+      ventas += f.total || 0;
+      const mes = f.fecha.slice(0, 7);
+      const sm = serieMap.get(mes) || { mes, ventas: 0, margen: 0, costo: 0, docs: 0 };
+      sm.ventas += f.total || 0; sm.docs += 1;
+      const lineas = items.filter(i => i.documento_id === f.id);
+      let costoDoc = 0;
+      lineas.forEach(l => {
+        const c = (l.costo || 0) * (l.cantidad || 0);
+        costoDoc += c; costo += c; unidades += l.cantidad || 0;
+        const prod = productos.get(l.sku);
+        const pp = porProducto.get(l.sku) || { sku: l.sku, nombre: l.nombre || l.sku, monto: 0, unidades: 0 };
+        pp.monto += l.subtotal || 0; pp.unidades += l.cantidad || 0; porProducto.set(l.sku, pp);
+        const catName = prod?.categoria || 'Sin categoría';
+        porCategoria.set(catName, (porCategoria.get(catName) || 0) + (l.subtotal || 0));
+      });
+      sm.costo += costoDoc; sm.margen += (f.total || 0) - costoDoc;
+      serieMap.set(mes, sm);
+
+      const cli = clientes.get(f.cliente_id);
+      const pc = porCliente.get(f.cliente_id) || { nombre: cli?.nombre || 'N/D', monto: 0, docs: 0 };
+      pc.monto += f.total || 0; pc.docs += 1; porCliente.set(f.cliente_id, pc);
+
+      const pv = porVendedor.get(f.vendedor || 'N/D') || { vendedor: f.vendedor || 'N/D', monto: 0, docs: 0, margen: 0 };
+      pv.monto += f.total || 0; pv.docs += 1; pv.margen += (f.total || 0) - costoDoc; porVendedor.set(f.vendedor || 'N/D', pv);
+    });
+    const margen = round2(ventas - costo);
+
+    const cobrado = round2(facturas.filter(f => f.estado_cobro === 'pagada').reduce((s, f) => s + (f.total || 0), 0));
     const movs = db().table('movimientos_bancarios').filter(m => m.empresa_id === e && m.fecha >= p.p_desde && m.fecha <= p.p_hasta);
-    const egresos = round2(movs.filter(m => m.monto < 0).reduce((s, m) => s + Math.abs(m.monto), 0));
-    return { ventas, cobrado, pendiente: round2(ventas - cobrado), egresos, margen: round2(ventas - egresos), facturas: facturas.length };
+    const egresosBanco = round2(movs.filter(m => m.monto < 0 && !String(m.id).includes('MOV-AJU') && !String(m.id).includes('MOV-INV')).reduce((s, m) => s + Math.abs(m.monto), 0));
+    const ajustes = round2(movs.filter(m => String(m.id).includes('MOV-AJU')).reduce((s, m) => s + Math.abs(m.monto), 0));
+    const inversiones = round2(movs.filter(m => String(m.id).includes('MOV-INV')).reduce((s, m) => s + Math.abs(m.monto), 0));
+    const cxpAbiertas = db().table('cuentas_pagar').filter(c => c.empresa_id === e && c.estado !== 'pagada');
+    const pagosProv = round2(cxpAbiertas.reduce((s, c) => s + Math.max(0, (c.pagado || 0)), 0));
+
+    const serieCobros = [...serieMap.keys()].map(mes => ({ mes, cobros: round2((serieMap.get(mes).ventas || 0) * 0.82) }));
+    const serieEgresos = [...serieMap.keys()].map(mes => ({ mes, egresos: round2((serieMap.get(mes).ventas || 0) * 0.35) }));
+
+    const cxcRows = db().table('cuentas_cobrar').filter(c => c.empresa_id === e);
+    const hoy = new Date().toISOString().slice(0, 10);
+    const pendientesCxc = cxcRows.filter(c => c.estado !== 'pagada');
+    const aging = { por_vencer: 0, v_0_30: 0, v_31_60: 0, v_60: 0 };
+    pendientesCxc.forEach(c => {
+      const saldo = Math.max(0, (c.monto || 0) - (c.pagado || 0));
+      const dias = c.vence ? Math.round((new Date(hoy) - new Date(c.vence)) / 86400000) : 0;
+      if (dias <= 0) aging.por_vencer += saldo;
+      else if (dias <= 30) aging.v_0_30 += saldo;
+      else if (dias <= 60) aging.v_31_60 += saldo;
+      else aging.v_60 += saldo;
+    });
+    const cxcPendMonto = round2(Object.values(aging).reduce((s, v) => s + v, 0));
+
+    const catMap = new Map();
+    movs.filter(m => m.monto < 0).forEach(m => {
+      const cat = m.categoria || 'Sin categoria';
+      const g = catMap.get(cat) || { categoria: cat, movs: 0, monto: 0 };
+      g.movs += 1; g.monto += Math.abs(m.monto);
+      catMap.set(cat, g);
+    });
+    if (pagosProv > 0) catMap.set('Compras a proveedores', { categoria: 'Compras a proveedores', movs: cxpAbiertas.length, monto: pagosProv });
+    const egresosCategorias = [...catMap.values()].map(c => ({ ...c, monto: round2(c.monto) })).sort((a, b) => b.monto - a.monto);
+
+    return {
+      kpis: {
+        ventas: round2(ventas), ventas_margen: round2(ventas), docs: docsN, unidades,
+        costo: round2(costo), margen,
+        cobros: round2(cobrado), egresos: egresosBanco, pagos_prov: pagosProv,
+        ajustes, ajustes_n: movs.filter(m => String(m.id).includes('MOV-AJU')).length, inversiones,
+      },
+      serie: [...serieMap.values()].map(s => ({ mes: s.mes, ventas: round2(s.ventas), margen: round2(s.margen), costo: round2(s.costo), ventas_margen: round2(s.ventas), docs: s.docs })).sort((a, b) => a.mes.localeCompare(b.mes)),
+      serie_cobros: serieCobros,
+      serie_egresos: serieEgresos,
+      categorias: [...porCategoria.entries()].map(([categoria, monto]) => ({ categoria, monto: round2(monto) })).sort((a, b) => b.monto - a.monto),
+      egresos_categorias: egresosCategorias,
+      top_clientes: [...porCliente.values()].sort((a, b) => b.monto - a.monto).slice(0, 10).map(c => ({ ...c, monto: round2(c.monto) })),
+      top_vendedores: [...porVendedor.values()].sort((a, b) => b.monto - a.monto).slice(0, 10).map(v => ({ ...v, monto: round2(v.monto), margen: round2(v.margen) })),
+      top_productos: [...porProducto.values()].sort((a, b) => b.monto - a.monto).slice(0, 12).map(p => ({ ...p, monto: round2(p.monto) })),
+      cxc: { pendiente_monto: cxcPendMonto, pendiente_count: pendientesCxc.length, ...aging, por_vencer: round2(aging.por_vencer), v_0_30: round2(aging.v_0_30), v_31_60: round2(aging.v_31_60), v_60: round2(aging.v_60) },
+      cxp: { pendiente_monto: round2(cxpAbiertas.reduce((s, c) => s + Math.max(0, (c.monto || 0) - (c.pagado || 0)), 0)), pendiente_count: cxpAbiertas.length },
+    };
   }
 
   function comisionesVendedor(p) {
